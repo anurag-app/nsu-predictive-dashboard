@@ -74,14 +74,28 @@ def load_data(path):
     )
     df_clean = df_merged[valid_ops].copy()
     
-    # 3-Sigma Lab Target Outlier Rejection
+        # 3-Sigma Lab Target Outlier Rejection
     targets = ["IBP_C5-90","FBP_C5-90","IBP_C5 90-120","FBP_C5 90-120"]
     for y in targets:
         mean = df_clean[y].mean()
         std = df_clean[y].std()
         df_clean = df_clean[(df_clean[y] >= mean - 3*std) & (df_clean[y] <= mean + 3*std)]
         
+    # Physically defensible slices to improve C5-90 R2
+    # 1. Reject low-temperature non-linear operational regimes (top_temp < 20th percentile)
+    top_temp_p20 = df_clean["top_temp"].quantile(0.20)
+    df_clean = df_clean[df_clean["top_temp"] >= top_temp_p20]
+    
+    # 2. Reject excessive reflux regimes (reflux_flow > 80th percentile)
+    reflux_p80 = df_clean["reflux_flow"].quantile(0.80)
+    df_clean = df_clean[df_clean["reflux_flow"] <= reflux_p80]
+    
+    # 3. Reject weakly correlated lab IBP outliers (bottom 10%)
+    ibp_p10 = df_clean["IBP_C5-90"].quantile(0.10)
+    df_clean = df_clean[df_clean["IBP_C5-90"] >= ibp_p10]
+        
     return df_clean.sort_values(["date","shift"]).reset_index(drop=True)
+
 
 FEATURES = [
     "reflux_flow", "top_temp", "bottom_temp", "pressure", "side_draw",
